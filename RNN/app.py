@@ -1,14 +1,17 @@
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
+from langchain.embeddings import OpenAIEmbeddings, HuggingFaceInstructEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
 from htmlTemplates import bot_template, user_template, css
+from langchain.llms import HuggingFaceHub
+from InstructorEmbedding import INSTRUCTOR
 
 API_KEY = open("NO_SYNC/apikey.txt", 'r').read().strip("\n")
+API_KEY_HF = open("NO_SYNC/apikeyHF.txt", 'r').read().strip("\n")
 
 
 def get_pdf_text(pdf_docs):
@@ -18,6 +21,7 @@ def get_pdf_text(pdf_docs):
         for page in pdf_reader.pages:
             text += page.extract_text()
     return text
+
 
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
@@ -29,13 +33,18 @@ def get_text_chunks(text):
     chunks = text_splitter.split_text(text)
     return chunks
 
+
 def get_vectorstore(text_chunks):
     embeddings = OpenAIEmbeddings(openai_api_key=API_KEY)
+    #embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-base")
     vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
     return vectorstore
 
+
 def get_conversation_chain(vectorstore):
     llm = ChatOpenAI(openai_api_key=API_KEY, model="gpt-3.5-turbo")
+    #llm = HuggingFaceHub(huggingfacehub_api_token=API_KEY_HF, repo_id="google/flan-t5-xxl",
+    #                    model_kwargs={"temprature": 0.5, "max_length": 500})
     memory = ConversationBufferMemory(
         memory_key='chat_history', return_messages=True)
     conversation_chain = ConversationalRetrievalChain.from_llm(
@@ -44,6 +53,7 @@ def get_conversation_chain(vectorstore):
         memory=memory
     )
     return conversation_chain
+
 
 def handle_userinput(user_question):
     response = st.session_state.conversation({'question': user_question})
@@ -86,7 +96,7 @@ def main():
 
                 # get the text chunks
                 text_chunks = get_text_chunks(raw_text)
-                #st.write(text_chunks)
+                # st.write(text_chunks)
 
                 # create vectore store
                 vectorstore = get_vectorstore(text_chunks)
